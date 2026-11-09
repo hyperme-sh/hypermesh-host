@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 // Package machineidentity manages a host signing key independently of human OAuth.
 package machineidentity
@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -175,6 +176,7 @@ func (p Provider) Token(ctx context.Context, base, tenant, device, request, boot
 	if p.Path == "" {
 		p.Path = DefaultPath
 	}
+	p.Path = identityPath(p.Path)
 	base, e := identityBase(base)
 	if e != nil {
 		return "", e
@@ -346,6 +348,7 @@ func (p Provider) ExistingToken(ctx context.Context, base, tenant, device, boots
 	if p.Path == "" {
 		p.Path = DefaultPath
 	}
+	p.Path = identityPath(p.Path)
 	// Inspect and use the checkpoint under one lock so retirement cannot slip
 	// between the two.
 	unlock, e := lock(ctx, p.Path)
@@ -515,6 +518,7 @@ func (p Provider) Invalidate(ctx context.Context, token string) error {
 	if p.Path == "" {
 		p.Path = DefaultPath
 	}
+	p.Path = identityPath(p.Path)
 	unlock, e := lock(ctx, p.Path)
 	if e != nil {
 		return e
@@ -595,6 +599,7 @@ func (p Provider) Peer(authority string) (Provider, error) {
 	if p.Path == "" {
 		p.Path = DefaultPath
 	}
+	p.Path = identityPath(p.Path)
 	hash := sha256.Sum256([]byte(authority))
 	p.Path += fmt.Sprintf(".peer-%x", hash[:])
 	p.Authority = authority
@@ -614,6 +619,7 @@ func (p Provider) ContractToken(ctx context.Context, base, tenant, device, reque
 	if p.Path == "" {
 		p.Path = DefaultPath
 	}
+	p.Path = identityPath(p.Path)
 	unlock, e := lock(ctx, p.Path)
 	if e != nil {
 		return "", e
@@ -689,6 +695,7 @@ func (p Provider) RetireEnrollment(ctx context.Context, device string, signing b
 	if p.Path == "" {
 		p.Path = DefaultPath
 	}
+	p.Path = identityPath(p.Path)
 	unlock, err := lock(ctx, p.Path)
 	if err != nil {
 		return err
@@ -777,4 +784,19 @@ func (p Provider) RetireEnrollment(ctx context.Context, device string, signing b
 		return rollback(err)
 	}
 	return nil
+}
+
+// Resolve only Darwin's fixed, root-owned /var alias. Other symlinks remain
+// forbidden by lock's ancestor checks and safeFile's O_NOFOLLOW.
+func identityPath(path string) string {
+	if runtime.GOOS == "darwin" && strings.HasPrefix(path, "/var/") {
+		if st, e := os.Lstat("/var"); e == nil {
+			if sys, ok := st.Sys().(*syscall.Stat_t); ok && sys.Uid == 0 {
+				if real, e := filepath.EvalSymlinks("/var"); e == nil {
+					return real + strings.TrimPrefix(path, "/var")
+				}
+			}
+		}
+	}
+	return path
 }

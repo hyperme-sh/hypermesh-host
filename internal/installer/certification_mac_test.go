@@ -30,10 +30,14 @@ func nativeFixtureReport() (certmeasure.Report, hostregistration.NativeManifest)
 	return r, m
 }
 func TestNativeProofRejectsMismatchedRawReports(t *testing.T) {
-	for _, mutation := range []string{"ok", "context", "cpu", "missing", "nan", "pins", "hardware", "failed", "raw"} {
+	for _, mutation := range []string{"ok", "metal-spelling", "context", "cpu", "missing", "nan", "pins", "hardware", "failed", "raw"} {
 		t.Run(mutation, func(t *testing.T) {
 			r, m := nativeFixtureReport()
 			switch mutation {
+			case "metal-spelling":
+				for i := range r.Samples {
+					r.Samples[i].Raw = bytes.ReplaceAll(r.Samples[i].Raw, []byte("MTL,BLAS"), []byte("Metal,BLAS"))
+				}
 			case "context":
 				r.ContextTokens = 512
 			case "cpu":
@@ -52,7 +56,7 @@ func TestNativeProofRejectsMismatchedRawReports(t *testing.T) {
 				r.Samples[0].Raw = bytes.ReplaceAll(r.Samples[0].Raw, []byte(`"n_depth":4064`), []byte(`"n_depth":512`))
 			}
 			e, err := nativeEvidence(r, m)
-			if (err == nil) != (mutation == "ok") {
+			if (err == nil) != (mutation == "ok" || mutation == "metal-spelling") {
 				t.Fatal(err)
 			}
 			if mutation == "ok" && (len(e.Samples) != 3 || e.Samples[0].DepthTokens != 4064 || !e.CleanupComplete) {

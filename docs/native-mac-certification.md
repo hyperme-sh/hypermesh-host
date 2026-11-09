@@ -32,6 +32,10 @@ sudo hypermesh-host certify-agent \
   --artifact-dir /var/root/native-certification/reports --run
 ```
 
+The CLI uses the native machine signing identity, with the same durable key,
+rotation, renewal and retirement implementation as Linux. Darwin’s fixed `/var`
+alias resolves to its canonical root-owned location; custom symlinks stay refused.
+
 The CLI checks the saved registration, installed configuration, unloaded host
 services and absence of a lease, then runs three independent full-context `MTL0`
 loads using the server's pins and context. It checks hardware/inventory drift

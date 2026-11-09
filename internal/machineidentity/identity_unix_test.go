@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 package machineidentity
 
@@ -100,7 +100,10 @@ func identityFixtureFor(t *testing.T, device, request string) (Provider, *time.T
 		json.NewEncoder(w).Encode(tokenReply{Token: "hm_msi_" + device + "." + strings.Repeat("a", 43), Type: "Bearer", TTL: 600, Public: current, Created: created})
 	}))
 	t.Cleanup(server.Close)
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	os.Chmod(dir, 0700)
 	p := Provider{Path: filepath.Join(dir, "identity.json"), HTTP: server.Client(), Now: func() time.Time { return now }}
 	// Keep test origin alongside the provider without exposing it to production state.
