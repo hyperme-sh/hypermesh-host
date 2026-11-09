@@ -1,3 +1,5 @@
+self-hosted-runner:
+  labels: [debrunner]
 # actionlint 1.7.12 rejects concurrency.queue. GitHub Actions accepts
 # queue: max, which keeps every pending run of the release-publish
 # group. The ignore pattern is that version's error text.
