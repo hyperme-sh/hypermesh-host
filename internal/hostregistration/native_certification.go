@@ -13,6 +13,7 @@ import (
 const NativeMetalProtocol = "metal-llama-bench-depth-v1"
 
 type NativeManifest struct {
+	InventoryEpoch     string   `json:"inventory_epoch"`
 	SuiteID            string   `json:"suite_id"`
 	CatalogID          string   `json:"catalog_id"`
 	ClassID            string   `json:"class_id"`
@@ -37,6 +38,9 @@ type NativeManifest struct {
 }
 
 func (m NativeManifest) Validate() error {
+	if stamp, e := time.Parse(time.RFC3339Nano, m.InventoryEpoch); e != nil || stamp.IsZero() {
+		return fmt.Errorf("native inventory epoch is missing")
+	}
 	if m.ClassID != "darwin-arm64-lab" || m.Purpose != "native-certification-v1" || m.Protocol != NativeMetalProtocol || m.OS != "darwin" || m.Arch != "arm64" || m.Samples != 3 || m.GeneratedTokens != 32 || m.Device != "MTL0" || m.PhysicalAcceptance || m.ThermalC != nil || !oneOf(m.SuiteID, "pack-v1", "thin-v1") || m.CatalogID == "" || !regexp.MustCompile(`^sha256:[a-f0-9]{64}$`).MatchString(m.FileHash) || !hashRE.MatchString(m.RuntimeSHA256) || !hashRE.MatchString(m.Hardware) || !regexp.MustCompile(`^[a-f0-9]{40}$`).MatchString(m.CollectorCommit) || !regexp.MustCompile(`^sha256:[a-f0-9]{64}$`).MatchString(m.EnvironmentHash) || m.ContextTokens < 512 || m.ContextTokens > 131072 || m.SizeBytes <= 0 || m.SizeBytes > 512<<30 || m.DecodeTokS <= 0 || math.IsNaN(m.DecodeTokS) || math.IsInf(m.DecodeTokS, 0) {
 		return fmt.Errorf("unsupported or incomplete native certificate manifest")
 	}

@@ -16,7 +16,7 @@ func TestNativeCertificationResponseBinding(t *testing.T) {
 			r := fixture(t)
 			r.ClassID = "darwin-arm64-lab"
 			id, _ := NewRunID()
-			m := NativeManifest{SuiteID: "pack-v1", CatalogID: "mac-model", ClassID: r.ClassID, Purpose: "native-certification-v1", Protocol: NativeMetalProtocol, FileHash: "sha256:" + strings.Repeat("a", 64), RuntimeSHA256: strings.Repeat("b", 64), CollectorCommit: strings.Repeat("d", 40), Device: "MTL0", EnvironmentHash: "sha256:" + strings.Repeat("e", 64), Hardware: strings.Repeat("f", 64), OS: "darwin", Arch: "arm64", Samples: 3, GeneratedTokens: 32, ContextTokens: 4096, DecodeTokS: 40, SizeBytes: 3}
+			m := NativeManifest{InventoryEpoch: time.Now().UTC().Format(time.RFC3339Nano), SuiteID: "pack-v1", CatalogID: "mac-model", ClassID: r.ClassID, Purpose: "native-certification-v1", Protocol: NativeMetalProtocol, FileHash: "sha256:" + strings.Repeat("a", 64), RuntimeSHA256: strings.Repeat("b", 64), CollectorCommit: strings.Repeat("d", 40), Device: "MTL0", EnvironmentHash: "sha256:" + strings.Repeat("e", 64), Hardware: strings.Repeat("f", 64), OS: "darwin", Arch: "arm64", Samples: 3, GeneratedTokens: 32, ContextTokens: 4096, DecodeTokS: 40, SizeBytes: 3}
 			prior := NativeRun{Manifest: m, RunID: id, ManifestSHA256: strings.Repeat("c", 64)}
 			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, q *http.Request) {
 				if q.Header.Get("Authorization") != "Bearer hm_dev_"+strings.Repeat("s", 32) {
