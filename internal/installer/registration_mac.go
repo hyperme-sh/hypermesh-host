@@ -406,7 +406,7 @@ func runMacRegister(ctx context.Context, args []string, out, diagnostic io.Write
 	}
 	status := macPublicRegistration(j)
 	if err == nil {
-		status.NextAction = "Host identity saved. Host remains paused and enrollment-only; certification and selling are unavailable for this class. Without --start-services, rerun the same command with it to load WireGuard then agent."
+		status.NextAction = "Host identity saved; selling remains paused. For native certification, keep services unloaded and use plan-certification with this registration digest after the operator configures the Metal reference and runtime pins. Enrollment-only startup remains available with --start-services."
 	}
 	if json.NewEncoder(out).Encode(status) != nil {
 		return 1
@@ -466,7 +466,7 @@ func macPublicRegistration(j registrationJournal) registrationStatus {
 	case "retired":
 		return s
 	case "registered-inactive":
-		s.NextAction = "Identity saved; host remains paused and enrollment-only. Rerun with --start-services to load WireGuard then agent if needed."
+		s.NextAction = "Identity saved; selling remains paused. Keep services unloaded for native plan-certification, or rerun with --start-services for enrollment-only startup."
 	default:
 		s.NextAction = "Rerun the same register-agent command with the original agent.env and installed files; preserve the private journal."
 	}

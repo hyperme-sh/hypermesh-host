@@ -87,13 +87,19 @@ jobs:
         # pinned sha256. The hosted image ships an older shellcheck, so
         # this keeps results the same from one image update to the next.
         # actionlint runs that binary because -shellcheck is set.
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tmp=$(mktemp -d)
-          curl -fsSL -o "$tmp/actionlint.tar.gz" https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          if ! curl --retry 5 --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 60 -fsSL -o "$tmp/actionlint.tar.gz" https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz; then
+            gh api -H "Accept: application/octet-stream" repos/rhysd/actionlint/releases/assets/384924896 > "$tmp/actionlint.tar.gz"
+          fi
           echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $tmp/actionlint.tar.gz" | sha256sum -c
           tar -xzf "$tmp/actionlint.tar.gz" -C "$tmp" actionlint
-          curl -fsSL -o "$tmp/shellcheck.tar.xz" https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz
+          if ! curl --retry 5 --retry-delay 2 --retry-max-time 90 --connect-timeout 15 --max-time 60 -fsSL -o "$tmp/shellcheck.tar.xz" https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz; then
+            gh api -H "Accept: application/octet-stream" repos/koalaman/shellcheck/releases/assets/155543215 > "$tmp/shellcheck.tar.xz"
+          fi
           echo "6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbedf87  $tmp/shellcheck.tar.xz" | sha256sum -c
           tar -xJf "$tmp/shellcheck.tar.xz" -C "$tmp"
           install -m 0755 "$tmp/shellcheck-v0.10.0/shellcheck" "$tmp/shellcheck"
@@ -153,4 +159,5 @@ jobs:
       - name: Test native hardware and Metal runtime contracts
         run: |
           go test -race ./internal/hardware ./internal/runtime
-          go test -race ./internal/installer -run '^TestMac'
+          go test -race ./internal/installer -run '^Test(Mac|Native)'
+          go test -race ./internal/machineidentity ./internal/hostregistration
