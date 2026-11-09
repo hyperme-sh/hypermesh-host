@@ -16,7 +16,7 @@ func snapshotFixture(r Request,q onboardingRequest)OnboardingSnapshot {
  AIuditorProgramState:"ready",Capabilities:[]string{"device_identity_v1","readiness_snapshot_v1","aiuditor_program_v1"},Nonce:q.Nonce,CheckedAt:time.Now().UTC(),
  TenantID:testTenant,RequestID:r.RequestID,DeviceID:q.DeviceID,HostName:r.HostName,ClassID:r.ClassID,
  ClassAvailable:flagValue(true),KeyFingerprint:Fingerprint(r.WGPublicKey),PathAState:"pending",
- PathBState:"uncertified",SellState:"paused",ScheduleHold:flagValue(false),
+ PathBState:"uncertified",SellState:"n/a",ScheduleHold:flagValue(false),
  ActivationAllowed:flagValue(false),SellingAllowed:flagValue(false),TunnelVerified:flagValue(false)}
 }
 func TestOnboardingUsesSavedCredentialAndFreshChallenge(t *testing.T){

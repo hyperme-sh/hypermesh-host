@@ -46,7 +46,7 @@ func (c *Client) checkHeartbeat(s HeartbeatReceipt,r Request,q heartbeatRequest)
  if s.HeartbeatState!="recorded"||s.HeartbeatRecordedAt==nil||s.HeartbeatRecordedAt.IsZero()||
  s.HeartbeatUptimeS==nil||*s.HeartbeatUptimeS!=q.UptimeS||s.LastHeartbeatAt==nil||
  !s.LastHeartbeatAt.Equal(*s.HeartbeatRecordedAt)||!s.CheckedAt.Equal(*s.HeartbeatRecordedAt)||
- !*s.ClassAvailable||*s.ScheduleHold||s.SellState!="paused"||!oneOf(s.PathBState,"uncertified","never-run")||
+ !*s.ClassAvailable||*s.ScheduleHold||!oneOf(s.SellState,"paused","n/a")||!oneOf(s.PathBState,"uncertified","never-run")||
  !oneOf(s.PathAState,"pending","accepted") {
   return fmt.Errorf("heartbeat acknowledgment is incomplete or does not match this inactive host")
  }
