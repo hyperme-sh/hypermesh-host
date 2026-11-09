@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/FyberLabs/hypermesh-host/internal/buildinfo"
@@ -201,6 +202,12 @@ func runMacNativeCertification(ctx context.Context, args []string, out, diagnost
 		if e != nil || info.Size() != m.SizeBytes {
 			return fail(fmt.Errorf("model size differs from the native plan"))
 		}
+		// The collector hashes an open descriptor but exec resolves a path.
+		// Protect that resolution against lower-privileged rename/replacement.
+		*binary = macPath("", *binary)
+		if e = trustedNativeRuntime(*binary, d.registration.root); e != nil {
+			return fail(e)
+		}
 		var output bytes.Buffer
 		code := d.measure(ctx, []string{"--model-file", *model, "--model-sha256", strings.TrimPrefix(m.FileHash, "sha256:"), "--runtime-file", *binary, "--runtime-sha256", m.RuntimeSHA256, "--backend", "metal", "--device", m.Device, "--samples", "3", "--context-tokens", fmt.Sprint(m.ContextTokens), "--generated-tokens", "32", "--artifact-dir", *artifacts, "--state-dir", macPath(d.registration.root, "/var/lib/hypermesh")}, &output, diagnostic)
 		if code != 0 {
@@ -308,4 +315,39 @@ func nativeRead(path string) ([]byte, error) {
 		return nil, err
 	}
 	return macRead(path, 0600, 2<<20)
+}
+
+// Production calls require euid 0. The internal fixture root only bounds tests;
+// it is not exposed as a CLI option. No writable/sticky directory exception is
+// safe here: every component used to resolve the executable must be trusted.
+func trustedNativeRuntime(path, fixtureRoot string) error {
+	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return fmt.Errorf("native runtime requires an absolute canonical path")
+	}
+	if fixtureRoot != "" {
+		rel, e := filepath.Rel(fixtureRoot, path)
+		if e != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+			return fmt.Errorf("native runtime is outside the fixture root")
+		}
+	}
+	for current := path; ; current = filepath.Dir(current) {
+		info, e := os.Lstat(current)
+		if e != nil {
+			return fmt.Errorf("native runtime or ancestor is unavailable")
+		}
+		st, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || st.Uid != uint32(os.Geteuid()) || info.Mode().Perm()&0022 != 0 || info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("native runtime and every ancestor must be root-owned and not writable by other users")
+		}
+		if current == path {
+			if !info.Mode().IsRegular() || info.Mode().Perm()&0111 == 0 {
+				return fmt.Errorf("native runtime must be a regular executable")
+			}
+		} else if !info.IsDir() {
+			return fmt.Errorf("native runtime ancestor must be a directory")
+		}
+		if current == "/" || current == fixtureRoot {
+			return nil
+		}
+	}
 }

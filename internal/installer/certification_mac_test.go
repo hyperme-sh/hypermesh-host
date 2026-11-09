@@ -148,7 +148,25 @@ func TestNativePlanningAndUploadRetriesRetainIdentityAndWork(t *testing.T) {
 	}
 	model := filepath.Join(f.d.root, "model.gguf")
 	os.WriteFile(model, []byte("abc"), 0600)
-	args := []string{"--plan", path, "--approve-plan", nativePlanDigest(p), "--model-file", model, "--runtime-file", "/unused", "--artifact-dir", filepath.Join(f.d.root, "artifacts"), "--run"}
+	binary := filepath.Join(f.d.root, "llama-bench")
+	if err := os.WriteFile(binary, []byte("verified runtime fixture"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"--plan", path, "--approve-plan", nativePlanDigest(p), "--model-file", model, "--runtime-file", binary, "--artifact-dir", filepath.Join(f.d.root, "artifacts"), "--run"}
+	// A writable ancestor would permit swapping an already-hashed pathname.
+	// Refuse it before invoking the workload or retaining upload evidence.
+	if err := os.Chmod(f.d.root, 0777); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, _ := call(false, args); code == 0 {
+		t.Fatal("writable runtime ancestor accepted")
+	}
+	if measureCalls != 0 || remote.reportCalls != 0 {
+		t.Fatal("unsafe runtime reached execution or upload")
+	}
+	if err := os.Chmod(f.d.root, 0700); err != nil {
+		t.Fatal(err)
+	}
 	if code, _, _ := call(false, args); code == 0 {
 		t.Fatal("lost upload accepted")
 	}
@@ -173,5 +191,56 @@ func TestNativePlanningAndUploadRetriesRetainIdentityAndWork(t *testing.T) {
 		if bytes.Contains(receipt, []byte(secret)) {
 			t.Fatal("credential leaked")
 		}
+	}
+}
+
+func TestNativeRuntimeResolutionRequiresTrustedOwnershipAndModes(t *testing.T) {
+	for _, kind := range []string{"trusted", "writable-file", "writable-ancestor", "file-symlink", "ancestor-symlink", "not-executable", "relative", "wrong-owner"} {
+		t.Run(kind, func(t *testing.T) {
+			root, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			directory := filepath.Join(root, "runtime")
+			if err = os.Mkdir(directory, 0700); err != nil {
+				t.Fatal(err)
+			}
+			binary := filepath.Join(directory, "llama-bench")
+			if err = os.WriteFile(binary, []byte("runtime"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			switch kind {
+			case "writable-file":
+				err = os.Chmod(binary, 0775)
+			case "writable-ancestor":
+				err = os.Chmod(directory, 0777)
+			case "file-symlink":
+				err = os.Rename(binary, binary+".saved")
+				if err == nil {
+					err = os.Symlink(binary+".saved", binary)
+				}
+			case "ancestor-symlink":
+				err = os.Rename(directory, directory+".saved")
+				if err == nil {
+					err = os.Symlink(directory+".saved", directory)
+				}
+			case "not-executable":
+				err = os.Chmod(binary, 0600)
+			case "relative":
+				binary = "relative/llama-bench"
+			case "wrong-owner":
+				if os.Geteuid() != 0 {
+					t.Skip("chown fixture requires root; Darwin tests cover mode and link rejection")
+				}
+				err = os.Chown(binary, 65534, -1)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := trustedNativeRuntime(binary, root)
+			if (got == nil) != (kind == "trusted") {
+				t.Fatalf("%s: %v", kind, got)
+			}
+		})
 	}
 }

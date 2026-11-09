@@ -36,6 +36,13 @@ The CLI uses the native machine signing identity, with the same durable key,
 rotation, renewal and retirement implementation as Linux. Darwin’s fixed `/var`
 alias resolves to its canonical root-owned location; custom symlinks stay refused.
 
+The runtime executable and every parent directory must be root-owned and not
+writable by group or other users. Install the reviewed runtime bundle beneath a
+protected location such as `/var/root/native-runtime`; user-writable download or
+Homebrew directories are refused before execution. Keep its required adjacent
+libraries in that protected bundle. Only the fixed Darwin `/var` and `/etc`
+aliases are normalized; other symlink components are refused.
+
 The CLI checks the saved registration, installed configuration, unloaded host
 services and absence of a lease, then runs three independent full-context `MTL0`
 loads using the server's pins and context. It checks hardware/inventory drift
