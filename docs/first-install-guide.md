@@ -209,3 +209,20 @@ directory. Existing `hypermesh-deploy` commands remain a compatibility entry
 point. Signed release artifact filenames and private continuation paths retain
 the old name so existing verifiers and timers continue to work. The public CLI
 is installed only after signature verification and saved setup consent.
+
+## Keep a registered host paused before first startup
+
+If registration is complete and both native services are inactive, root can
+record an indefinite owner pause before the first heartbeat:
+
+```sh
+sudo hypermesh-host sell pause --inactive --agent-plan /absolute/saved/agent.json
+```
+
+This verifies the installed plan, inactive services and current registration,
+then privately records only the owner pause. It starts no service, sends no
+heartbeat and changes no Plane record. Later native startup and activation
+preserve this pause; normal online `sell resume` remains the way to resume.
+The command refuses timed pauses, conflicting existing intent, unsafe files,
+leases, active services and other registration states. It never falls back
+to a local write when an online owner request fails.

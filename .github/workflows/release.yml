@@ -38,9 +38,8 @@ permissions:
 jobs:
   release:
     name: release
-    # Explicit test-only builds use the trusted main-only debrunner group.
-    # Default main/tag runner routing stays unchanged; no public PR signing job.
-    runs-on: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.test_only && '["self-hosted","linux","x64","debrunner"]' || '["ubuntu-24.04"]') }}
+    # Private release jobs use the trusted debrunner pool.
+    runs-on: [self-hosted, linux, x64, debrunner]
     timeout-minutes: 60
     # Cloud login uses repository variables and ref-based OIDC, not a GitHub
     # Environment. The dedicated App key is only for test-only GitHub releases.
@@ -252,8 +251,10 @@ jobs:
         if: always()
         run: bash "$RUNNER_TEMP/release-cleanup.sh"
 
-      - name: Automatically release successful main
-        if: github.ref == 'refs/heads/main'
+      # Main publishes the signed TEST channel above. Stable/prod publication
+      # remains a separate explicit operation; a merge cannot promote to prod.
+      - name: Explicitly promote successful main
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !inputs.test_only
         env:
           GH_TOKEN: ${{ github.token }}
           HYPERMESH_TEST_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.test_only }}
