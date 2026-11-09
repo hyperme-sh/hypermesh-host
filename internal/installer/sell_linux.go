@@ -13,10 +13,10 @@ import (
 	"time"
 )
 
-const sellUsage = "usage: hypermesh-deploy sell pause [--until=RFC3339] | sell resume | sell status"
+const sellUsage = "usage: hypermesh-host sell pause [--until=RFC3339] [--inactive --agent-plan=FILE] | sell resume | sell status"
 
-// RunSell is the owner's selling control for an activated host. Each action
-// is a single request to the local agent; no plan review is involved.
+// RunSell controls selling through the local owner socket. An explicit inactive
+// pause records owner intent before a registered first installation starts.
 func RunSell(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	if os.Geteuid() != 0 {
 		fmt.Fprintln(diagnostic, "requires root: sudo hypermesh-host sell ...")
@@ -37,8 +37,28 @@ func runSell(ctx context.Context, stateDir string, args []string, out, diagnosti
 		f := flag.NewFlagSet("sell pause", flag.ContinueOnError)
 		f.SetOutput(diagnostic)
 		until := f.String("until", "", "optional RFC3339 time when selling resumes on its own")
+		inactive := f.Bool("inactive", false, "record an indefinite owner pause before first service startup")
+		agentPlan := f.String("agent-plan", "", "registered inactive installation plan (with --inactive)")
 		if err := f.Parse(args[1:]); err != nil || f.NArg() != 0 {
 			fmt.Fprintln(diagnostic, sellUsage)
+			return 2
+		}
+		if *inactive {
+			if *agentPlan == "" || *until != "" {
+				fmt.Fprintln(diagnostic, "inactive pause requires --agent-plan FILE and no --until")
+				return 2
+			}
+			if err := prepareInactiveOwnerPause(ctx, stateDir, *agentPlan); err != nil {
+				fmt.Fprintln(diagnostic, err)
+				return 1
+			}
+			if json.NewEncoder(out).Encode(map[string]any{"sell_state": "paused", "pause_source": "owner", "local_only": true, "agent_started": false}) != nil {
+				return 1
+			}
+			return 0
+		}
+		if *agentPlan != "" {
+			fmt.Fprintln(diagnostic, "--agent-plan requires --inactive")
 			return 2
 		}
 		u := strings.TrimSpace(*until)
