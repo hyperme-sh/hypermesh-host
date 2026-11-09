@@ -61,6 +61,11 @@ func runMacNativeCertification(ctx context.Context, args []string, out, diagnost
 	if flags.NArg() != 0 || !filepath.IsAbs(*path) || (planning && !macSHA.MatchString(*registration)) || (!planning && (!*run || !macSHA.MatchString(*approved))) {
 		return fail(fmt.Errorf("require an absolute --plan; planning requires --registration-plan-sha; execution requires --approve-plan and --run"))
 	}
+	// Resolve only Darwin's fixed root-owned /var and /etc aliases.
+	*path = macPath("", *path)
+	if *artifacts != "" {
+		*artifacts = macPath("", *artifacts)
+	}
 	state := macPath(d.registration.root, macRegistrationState)
 	unlock, err := macLock(state)
 	if err != nil {
