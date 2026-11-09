@@ -50,7 +50,20 @@ class ReleaseAuthTests(unittest.TestCase):
         ):
             self.assertIn(required, action)
         self.assertEqual(action.count('permission-'), 2)
-        self.assertNotIn('steps.test-release-token', step('Automatically release successful main'))
+        self.assertNotIn('steps.test-release-token', step('Explicitly promote successful main'))
+
+    def test_merge_and_test_dispatch_never_promote_to_production(self):
+        condition=step('Explicitly promote successful main').split('        if: ',1)[1].splitlines()[0]
+        for event,ref,test_only,expected in [
+            ('push','refs/heads/main',False,False),
+            ('push','refs/tags/v1.0.0',False,False),
+            ('workflow_dispatch','refs/heads/main',True,False),
+            ('workflow_dispatch','refs/heads/other',False,False),
+            ('workflow_dispatch','refs/heads/main',False,True),
+        ]:
+            expression=condition.replace('github.event_name',repr(event)).replace('github.ref',repr(ref)).replace('inputs.test_only',repr(test_only)).replace('&&',' and ').replace('!',' not ')
+            with self.subTest(event=event,ref=ref,test_only=test_only):
+                self.assertEqual(eval(expression,{'__builtins__':{}},{}),expected)
 
     def publish(self, enabled, token, *, channel='test'):
         with tempfile.TemporaryDirectory() as directory:
