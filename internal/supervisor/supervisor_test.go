@@ -168,7 +168,7 @@ func TestHostPlacementEnrollsHeartbeatsAndRefusesLease(t *testing.T) {
 		heartbeats++
 		notifyReady()
 		_ = json.NewDecoder(r.Body).Decode(&beatBody)
-		writeJSON(w, api.HeartbeatResponse{DeviceID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", PathBState: api.PathBNeverRun})
+		writeJSON(w, api.HeartbeatResponse{DeviceID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", PathBState: api.PathBUncertified})
 	})
 	mux.HandleFunc(api.PathTunnelPeer, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
@@ -408,7 +408,7 @@ func TestHostRestartHonorsStoredTerms(t *testing.T) {
 		mu.Lock()
 		heartbeats++
 		mu.Unlock()
-		writeJSON(w, api.HeartbeatResponse{DeviceID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", PathBState: api.PathBNeverRun})
+		writeJSON(w, api.HeartbeatResponse{DeviceID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", PathBState: api.PathBUncertified})
 	})
 	mux.HandleFunc(api.PathJobs, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)

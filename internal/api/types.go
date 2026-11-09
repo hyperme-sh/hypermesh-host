@@ -141,7 +141,7 @@ type HostHealth struct {
 type PathBState string
 
 const (
-	PathBNeverRun  PathBState = "never-run"
+	PathBUncertified  PathBState = "uncertified"
 	PathBGreen     PathBState = "green"
 	PathBSuspended PathBState = "suspended"
 )

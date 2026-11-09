@@ -78,7 +78,7 @@ func TestSyntheticAgentLoop(t *testing.T) {
 		mu.Unlock()
 		writeJSON(w, http.StatusOK, api.HeartbeatResponse{
 			DeviceID:   testDevice,
-			PathBState: api.PathBNeverRun,
+			PathBState: api.PathBUncertified,
 			AcceptedAt: time.Now().UTC(),
 		})
 	})

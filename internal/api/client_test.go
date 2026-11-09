@@ -64,7 +64,7 @@ func TestEnrollHeartbeatJob204Result(t *testing.T) {
 		}
 		writeJSON(w, http.StatusOK, HeartbeatResponse{
 			DeviceID:   testDevice,
-			PathBState: PathBNeverRun,
+			PathBState: PathBUncertified,
 			AcceptedAt: time.Date(2026, 8, 22, 0, 0, 0, 0, time.UTC),
 		})
 	})
@@ -117,7 +117,7 @@ func TestEnrollHeartbeatJob204Result(t *testing.T) {
 	if err != nil {
 		t.Fatalf("heartbeat: %v", err)
 	}
-	if hb.PathBState != PathBNeverRun {
+	if hb.PathBState != PathBUncertified {
 		t.Fatalf("heartbeat resp %+v", hb)
 	}
 
