@@ -45,6 +45,7 @@ type Result struct {
 	ContextFit      *ContextFit
 	// WorkloadVerified is set only by the agent after pinned execution and cleanup.
 	WorkloadVerified bool
+	MeasuredGGUFHash string
 	Passed           bool
 	ImageHash        string
 	Reason           string

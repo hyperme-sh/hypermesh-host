@@ -399,6 +399,10 @@ func jobResultBody(kind api.JobKind, res jobOutcome) api.JobResultRequest {
 		req.DeviceID = res.DeviceID
 	}
 	if kind == api.KindPathB {
+		// Plane binds a catalog soak result to the GGUF mounted for inference.
+		if res.Passed && res.WorkloadVerified {
+			req.ImageHash = res.MeasuredGGUFHash
+		}
 		req.EgressOk = res.EgressOk
 		req.EgressReason = res.EgressReason
 	}
