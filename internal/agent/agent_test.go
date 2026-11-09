@@ -80,7 +80,7 @@ func TestLoopEnrollBearerPersistAndLabSoak(t *testing.T) {
 		}
 		writeJSON(w, http.StatusOK, api.HeartbeatResponse{
 			DeviceID:   testDevice,
-			PathBState: api.PathBNeverRun,
+			PathBState: api.PathBUncertified,
 			AcceptedAt: time.Now().UTC(),
 		})
 	})

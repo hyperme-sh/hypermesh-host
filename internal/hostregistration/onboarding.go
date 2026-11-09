@@ -87,7 +87,7 @@ func (c *Client) checkOnboarding(s OnboardingSnapshot,r Request,q onboardingRequ
   return fmt.Errorf("missing or unrecognized certification program state; update the plane and retry")
  }
  if !oneOf(s.PathAState,"accepted","pending","rejected","unknown")||
- !oneOf(s.PathBState,"green","never-run","suspended","unknown")||
+ !oneOf(s.PathBState,"green","uncertified","never-run","suspended","unknown")||
  !oneOf(s.SellState,"paused","selling","draining","off","n/a","unknown") {
   return fmt.Errorf("unrecognized onboarding readiness state")
  }

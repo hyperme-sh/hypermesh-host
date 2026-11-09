@@ -18,7 +18,7 @@ import (
 func onboardingFixture()hostregistration.OnboardingSnapshot {
  yes,no:=true,false
  return hostregistration.OnboardingSnapshot{AIuditorProgramState:"ready",CheckedAt:time.Now().UTC(),ClassAvailable:&yes,
- PathAState:"pending",PathBState:"never-run",SellState:"paused",ScheduleHold:&no,
+ PathAState:"pending",PathBState:"uncertified",SellState:"paused",ScheduleHold:&no,
  ActivationAllowed:&no,SellingAllowed:&no,TunnelVerified:&no}
 }
 func TestOnboardingSuccessRetainsPendingGatesAndCannotActivate(t *testing.T){
