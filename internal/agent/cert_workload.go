@@ -187,6 +187,7 @@ func (a *Agent) runCertWorkload(ctx context.Context, job api.Job, observe func(c
 	if ctx.Err() != nil {
 		return fail("certification observation timed out")
 	}
+	result.MeasuredGGUFHash = after
 	result.WorkloadVerified = true
 	return result
 }

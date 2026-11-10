@@ -78,6 +78,16 @@ func TestCertRunsOnlyRequestedPinsAndCleansBeforeReturning(t *testing.T) {
 	}
 }
 
+func TestCatalogSoakPostsMeasuredGGUFHash(t *testing.T) {
+	a, job, _ := certFixture(t, 200)
+	job.Kind = api.KindPathB
+	outcome := a.runJob(context.Background(), job)
+	result := jobResultBody(job.Kind, outcome)
+	if !result.Passed || result.ImageHash != job.FileHash || result.ImageHash == outcome.ImageHash {
+		t.Fatalf("soak result %v, telemetry hash %s", result, outcome.ImageHash)
+	}
+}
+
 func TestCertRejectsUnpinnedOrBusyWorkBeforeDocker(t *testing.T) {
 	cases:=[]struct{name string; change func(*Agent,*api.Job)}{
 		{"private context override",func(a *Agent,j *api.Job){j.SourceRef=privateModelPrefix+"revision";j.CertificationContextTokens=512}},
