@@ -23,6 +23,7 @@ var uuid = regexp.MustCompile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 var digest = regexp.MustCompile("^[0-9a-f]{64}$")
 
 type host struct {
+	tokenizer                                                         string
 	plane, runtime, tenant, lease, recipe, model, key, credentialFile string
 	client                                                            *http.Client
 }
@@ -55,6 +56,10 @@ func (h host) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path == "/tokenize" {
+		if h.tokenizer == "llama.cpp" {
+			h.llamaCount(w, r, body)
+			return
+		}
 		req, err := http.NewRequestWithContext(r.Context(), "POST", h.runtime+"/tokenize", bytes.NewReader(body))
 		if err != nil {
 			http.Error(w, "invalid runtime", 503)
@@ -145,8 +150,8 @@ func validOrigin(raw string, local bool) bool {
 }
 func run() error {
 	env := os.Getenv
-	h := host{plane: env("RECEIPT_PLANE_ORIGIN"), runtime: env("RECEIPT_RUNTIME_ORIGIN"), tenant: env("RECEIPT_TENANT"), lease: env("RECEIPT_LEASE"), model: env("RECEIPT_MODEL"), recipe: env("RECEIPT_RECIPE_SHA256"), key: env("RECEIPT_INGRESS_TOKEN"), credentialFile: env("RECEIPT_DEVICE_TOKEN_FILE"), client: &http.Client{Timeout: 5 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
-	if !validOrigin(h.runtime, true) || !validOrigin(h.plane, false) || !uuid.MatchString(h.lease) || !uuid.MatchString(h.tenant) || !digest.MatchString(h.recipe) || h.model == "" || h.key == "" || h.credentialFile == "" {
+	h := host{tokenizer: env("RECEIPT_TOKENIZER"), plane: env("RECEIPT_PLANE_ORIGIN"), runtime: env("RECEIPT_RUNTIME_ORIGIN"), tenant: env("RECEIPT_TENANT"), lease: env("RECEIPT_LEASE"), model: env("RECEIPT_MODEL"), recipe: env("RECEIPT_RECIPE_SHA256"), key: env("RECEIPT_INGRESS_TOKEN"), credentialFile: env("RECEIPT_DEVICE_TOKEN_FILE"), client: &http.Client{Timeout: 5 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+	if (h.tokenizer != "" && h.tokenizer != "llama.cpp") || !validOrigin(h.runtime, true) || !validOrigin(h.plane, false) || !uuid.MatchString(h.lease) || !uuid.MatchString(h.tenant) || !digest.MatchString(h.recipe) || h.model == "" || h.key == "" || h.credentialFile == "" {
 		return fmt.Errorf("invalid host receipt configuration")
 	}
 	server := http.Server{Addr: "127.0.0.1:18081", Handler: h, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 30 * time.Second}
