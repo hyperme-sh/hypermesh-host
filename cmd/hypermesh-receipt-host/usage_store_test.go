@@ -96,3 +96,41 @@ func TestUncertainUsageAndWrongScopeNeverRedispatch(t *testing.T) {
 		t.Fatal("scope mismatch accepted")
 	}
 }
+
+func TestInvalidSubcountsLeaveAttemptUncertain(t *testing.T) {
+	for _, details := range []string{
+		`"prompt_tokens_details":{"cached_tokens":11}`,
+		`"completion_tokens_details":{"reasoning_tokens":-1}`,
+		`"completion_tokens_details":{"reasoning_tokens":9}`,
+	} {
+		t.Run(details, func(t *testing.T) {
+			runtime := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(`{"id":"execution","model":"m","usage":{"prompt_tokens":10,"completion_tokens":8,` + details + `}}`))
+			}))
+			defer runtime.Close()
+			reports := 0
+			plane := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { reports++ }))
+			defer plane.Close()
+			dir := t.TempDir()
+			token := filepath.Join(dir, "token")
+			if err := os.WriteFile(token, []byte("device"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			h := host{runtime: runtime.URL, plane: plane.URL, key: "ingress", model: "m", usageDetails: true,
+				credentialFile: token, client: runtime.Client(), usageDir: filepath.Join(dir, "usage")}
+			if err := h.prepareUsageStore(); err != nil {
+				t.Fatal(err)
+			}
+			const attempt = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+			r := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"m","messages":[]}`))
+			r.Header.Set("Authorization", "Bearer ingress")
+			r.Header.Set("X-Hypermesh-Token-Attempt", attempt)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			item, err := h.readUsage(attempt)
+			if w.Code != 502 || reports != 0 || err != nil || item.State != "uncertain" {
+				t.Fatal(w.Code, reports, item, err)
+			}
+		})
+	}
+}
