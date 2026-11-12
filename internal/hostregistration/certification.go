@@ -9,6 +9,7 @@ import (
  "regexp"
  "math"
  "time"
+ hostruntime "github.com/FyberLabs/hypermesh-host/internal/runtime"
 )
 
 type CertificationManifest struct {
@@ -79,7 +80,7 @@ func (m CertificationManifest) validatePins(baseline bool)error{
  if !oneOf(m.SuiteID,"pack-v1","thin-v1")||!regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`).MatchString(m.CatalogID)||
  !oneOf(m.ClassID,"agx-large","nx-volume")||
  !regexp.MustCompile(`^sha256:[a-f0-9]{64}$`).MatchString(m.FileHash)||
- !regexp.MustCompile(`^[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}$`).MatchString(m.ImageDigest)||
+ !validRuntimeImage(m.ImageDigest)||
  m.SizeBytes<=0||m.SizeBytes>512<<30||m.Runtime!="nvidia"||m.Backend!="cuda-jetson"||
  m.ContextTokens<512||m.ContextTokens>131072||!m.FullContext||(baseline&&m.DecodeTokS<=0)||math.IsNaN(m.DecodeTokS)||math.IsInf(m.DecodeTokS,0)||
  (m.ThermalC!=nil&&(math.IsNaN(*m.ThermalC)||math.IsInf(*m.ThermalC,0))){
@@ -134,4 +135,10 @@ func(c *Client) approveStart(ctx context.Context,run CertificationRun,operation 
  map[string]string{"run_id":run.RunID,"manifest_sha256":run.ManifestSHA256},&out);err!=nil{return err}
  if !out.Approved||out.RunID!=run.RunID||out.ManifestSHA256!=run.ManifestSHA256{return fmt.Errorf("owner activation approval unconfirmed")}
  return nil
+}
+
+func validRuntimeImage(value string) bool {
+ if regexp.MustCompile(`^[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}$`).MatchString(value) {return true}
+ _,err:=hostruntime.ChannelRef(value)
+ return err==nil
 }

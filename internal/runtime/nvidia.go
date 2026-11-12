@@ -124,14 +124,18 @@ func NewNVIDIA() *NVIDIA {
 	return &NVIDIA{Docker: "docker"}
 }
 
-// ImageRef accepts the fixed image_digest field. It must be repo@digest.
-// Bare sha256:hex fails. A registry and repository are required.
+// ImageRef preserves the older immutable field and accepts configured channels.
+// Bare hashes are model artifacts, never executable runtime references.
 func ImageRef(imageDigest string) (string, error) {
 	s := strings.TrimSpace(imageDigest)
 	if s == "" {
 		return "", ErrNoImage
 	}
 	if !strings.Contains(s, "/") && strings.HasPrefix(s, "sha256:") {
+		return "", ErrBareDigest
+	}
+	if !strings.Contains(s, "@") {
+		if ref, err := ChannelRef(imageDigest); err == nil { return ref, nil }
 		return "", ErrBareDigest
 	}
 	repo, dig, ok := strings.Cut(s, "@")
@@ -236,7 +240,7 @@ func (n *NVIDIA) Start(ctx context.Context, spec Spec) (*Handle, error) {
 	if n.cpu {spec.Backend=BackendLlamaCppCPU}
 	name := ContainerName(spec.LeaseID)
 	if out, err := n.run(ctx, PullArgs(ref)...); err != nil {
-		if !n.imagePresent(ctx, ref) {
+		if !strings.Contains(ref, "@") || !n.imagePresent(ctx, ref) {
 			return nil, wrapDocker("pull", out, err)
 		}
 	}

@@ -20,6 +20,12 @@ import (
 
 var certImagePin = regexp.MustCompile(`^[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}$`)
 
+func validCertificationImage(value string) bool {
+ if certImagePin.MatchString(value) {return true}
+ _, err := runtime.ChannelRef(value)
+ return err == nil
+}
+
 // runCertWorkload owns a temporary, pinned workload for this job only.
 // Missing pins, an existing lease, failed inference or uncertain cleanup
 // cannot be turned into a certification sample. No service activation,
@@ -40,7 +46,7 @@ func (a *Agent) runCertWorkload(ctx context.Context, job api.Job, observe func(c
 	if strings.TrimSpace(job.JobID) == "" || (job.SuiteID != pathb.SuitePackV1 && job.SuiteID != pathb.SuiteThinV1) {
 		return fail("certification requires job identity and a supported suite")
 	}
-	if strings.TrimSpace(job.CatalogID) == "" || !certImagePin.MatchString(job.ImageDigest) {
+	if strings.TrimSpace(job.CatalogID) == "" || !validCertificationImage(job.ImageDigest) {
 		return fail("certification requires catalog_id and pinned image_digest")
 	}
 	pin, err := normalizeModelID(job.FileHash)
