@@ -51,7 +51,7 @@ var workloadPlanRE = regexp.MustCompile(`^[a-f0-9]{64}$`)
 func ValidateWorkloadPreflight(r WorkloadPreflight) error {
 	pin, err := normalizeModelID(r.FileHash)
 	if !workloadPlanRE.MatchString(r.PlanSHA256) || !workloadCatalogRE.MatchString(r.CatalogID) ||
-		!certImagePin.MatchString(r.ImageDigest) || err != nil || pin != r.FileHash ||
+		!validCertificationImage(r.ImageDigest) || err != nil || pin != r.FileHash ||
 		!filepath.IsAbs(r.ModelPath) || filepath.Clean(r.ModelPath) != r.ModelPath ||
 		strings.ContainsAny(r.ModelPath, ":\r\n\x00") || r.ContextTokens < 512 || r.ContextTokens > 131072 || (r.SuiteID != "" && r.SuiteID != pathb.SuitePackV1 && r.SuiteID != pathb.SuiteThinV1) {
 		return fmt.Errorf("invalid pinned workload request")

@@ -98,6 +98,7 @@ func (h *HIP) Start(ctx context.Context, spec Spec) (*Handle, error) {
 	}
 	if _, err:=requireServeAlias(spec.CatalogID);err!=nil {return nil,err}
     if out,err:=h.run(ctx,PullArgs(ref)...);err!=nil {
+        if !strings.Contains(ref, "@") {return nil,wrapDocker("pull",out,err)}
         if _,inspectErr:=h.run(ctx,"image","inspect","--format","{{.Id}}",ref);inspectErr!=nil {return nil,wrapDocker("pull",out,err)}
     }
     name := ContainerName(spec.LeaseID)
