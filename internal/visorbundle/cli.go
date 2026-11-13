@@ -11,8 +11,11 @@ import (
 
 func Run(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(diagnostic, "usage: hypermesh-host visor install|remove --directory PATH")
+		fmt.Fprintln(diagnostic, "usage: hypermesh-host visor install|remove --directory PATH; visor sign-call --help")
 		return 2
+	}
+	if args[0] == "sign-call" {
+		return signCall(ctx, args[1:], out, diagnostic)
 	}
 	action := args[0]
 	if action != "install" && action != "remove" {
