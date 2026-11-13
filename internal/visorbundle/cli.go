@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/FyberLabs/hypermesh-host/internal/update"
+	"github.com/FyberLabs/hypermesh-host/internal/visorbridge"
 	"io"
 	"os"
 )
@@ -13,6 +14,12 @@ func Run(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintln(diagnostic, "usage: hypermesh-host visor install|remove --directory PATH; visor sign-call --help")
 		return 2
+	}
+	if args[0] == "controller" {
+		return visorbridge.RunController(ctx, args[1:], out, diagnostic)
+	}
+	if args[0] == "bridge" {
+		return visorbridge.Run(ctx, args[1:], diagnostic)
 	}
 	if args[0] == "sign-call" {
 		return signCall(ctx, args[1:], out, diagnostic)
