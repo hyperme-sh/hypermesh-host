@@ -19,9 +19,15 @@ import (
 	"github.com/FyberLabs/hypermesh-host/internal/hardware"
 	"github.com/FyberLabs/hypermesh-host/internal/installer"
 	"github.com/FyberLabs/hypermesh-host/internal/protection"
+ "github.com/FyberLabs/hypermesh-host/internal/visorbundle"
 )
 
 func Main() {
+ if len(os.Args)>1 && os.Args[1]=="visor" {
+  ctx,stop:=signal.NotifyContext(context.Background(),os.Interrupt,syscall.SIGTERM)
+  code:=visorbundle.Run(ctx,os.Args[2:],os.Stdout,os.Stderr)
+  stop();os.Exit(code)
+ }
  if len(os.Args)>1 && os.Args[1]=="measure-certification" {
   ctx,stop:=signal.NotifyContext(context.Background(),os.Interrupt,syscall.SIGTERM)
   defer stop()
@@ -208,6 +214,7 @@ func advancedUsage() {
 	fmt.Fprintf(os.Stderr, `hypermesh-host <class>
 
 Commands:
+  visor install|remove  opt-in verified headless bundle delivery; use visor install --help.
   plan-installer-update  review signed CLI replacement; --release-url URL --channel test|prod --trusted-key FILE --fingerprints LIST
   update-installer  replace reviewed CLI with retained backup; --plan FILE --approve-plan SHA256 --apply
   rollback-installer  explicitly restore that backup; --plan FILE --approve-plan SHA256 --apply
