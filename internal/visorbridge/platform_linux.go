@@ -84,19 +84,20 @@ func peerUID(conn net.Conn) (uint32, error) {
 	return cred.Uid, nil
 }
 func (b *Bridge) Serve(ctx context.Context) error {
+	if trustedExecutable(b.config.Conductor) != nil {
+		return refused
+	}
+	return serveSocket(ctx, b.config.Socket, b.config.ClientUID, b.Handler())
+}
+func serveSocket(ctx context.Context, path string, clientUID uint32, handler http.Handler) error {
 	if os.Geteuid() != 0 {
 		return refused
 	}
-	path := b.config.Socket
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return refused
 	}
 	// An existing root-owned directory is required. It may be traversable by the
 	// Visor account, but nobody else may replace the socket or its parents.
-	marker := b.config.Conductor
-	if trustedExecutable(marker) != nil {
-		return refused
-	}
 	for dir := filepath.Dir(path); ; dir = filepath.Dir(dir) {
 		st, err := os.Lstat(dir)
 		if err != nil {
@@ -119,10 +120,14 @@ func (b *Bridge) Serve(ctx context.Context) error {
 		return refused
 	}
 	defer listener.Close()
-	if os.Chmod(path, 0666) != nil {
+	mode := os.FileMode(0666)
+	if clientUID == 0 {
+		mode = 0600
+	}
+	if os.Chmod(path, mode) != nil {
 		return refused
 	}
-	server := &http.Server{Handler: b.Handler(), ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 3 * time.Second, WriteTimeout: 40 * time.Second, IdleTimeout: 2 * time.Second, MaxHeaderBytes: 4096, ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+	server := &http.Server{Handler: handler, ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 3 * time.Second, WriteTimeout: 40 * time.Second, IdleTimeout: 2 * time.Second, MaxHeaderBytes: 4096, ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 		uid, err := peerUID(c)
 		if err != nil {
 			return ctx
@@ -138,7 +143,7 @@ func (b *Bridge) Serve(ctx context.Context) error {
 		case <-done:
 		}
 	}()
-	if err = server.Serve(&peerListener{UnixListener: listener, uid: b.config.ClientUID, slots: make(chan struct{}, 32)}); err != nil && err != http.ErrServerClosed {
+	if err = server.Serve(&peerListener{UnixListener: listener, uid: clientUID, slots: make(chan struct{}, 32)}); err != nil && err != http.ErrServerClosed {
 		return refused
 	}
 	return nil
@@ -174,4 +179,27 @@ func (l *peerListener) Accept() (net.Conn, error) {
 			connection.Close()
 		}
 	}
+}
+
+func controllerStateDir(path string) error {
+	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return refused
+	}
+	for dir := path; ; dir = filepath.Dir(dir) {
+		st, err := os.Lstat(dir)
+		if err != nil {
+			return refused
+		}
+		stat, ok := st.Sys().(*syscall.Stat_t)
+		if !ok || !st.IsDir() || st.Mode()&os.ModeSymlink != 0 || (stat.Uid != 0 && stat.Uid != uint32(os.Geteuid())) || (st.Mode().Perm()&0022 != 0 && !(stat.Uid == 0 && st.Mode()&os.ModeSticky != 0)) {
+			return refused
+		}
+		if dir == path && (stat.Uid != uint32(os.Geteuid()) || st.Mode().Perm() != 0700) {
+			return refused
+		}
+		if dir == "/" {
+			break
+		}
+	}
+	return nil
 }

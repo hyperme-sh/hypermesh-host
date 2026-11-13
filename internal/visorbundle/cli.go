@@ -15,6 +15,9 @@ func Run(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 		fmt.Fprintln(diagnostic, "usage: hypermesh-host visor install|remove --directory PATH; visor sign-call --help")
 		return 2
 	}
+	if args[0] == "controller" {
+		return visorbridge.RunController(ctx, args[1:], diagnostic)
+	}
 	if args[0] == "bridge" {
 		return visorbridge.Run(ctx, args[1:], diagnostic)
 	}
