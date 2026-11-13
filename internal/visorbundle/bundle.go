@@ -83,7 +83,7 @@ func (m Manifest) validate(arch string) error {
 	if err != nil || len(hash) != 32 || m.Bundle.SHA256 != strings.ToLower(m.Bundle.SHA256) {
 		return errors.New("invalid bundle digest")
 	}
-	if m.Bundle.Size <= 0 || m.Bundle.Size > maxBundle || m.Checksums.Size <= 0 || m.Checksums.Size > 1<<20 || m.Signature.Size <= 0 || m.Signature.Size > 1<<20 {
+	if m.Bundle.Size <= 0 || m.Bundle.Size > update.MaxDownloadBytes || m.Checksums.Size <= 0 || m.Checksums.Size > 1<<20 || m.Signature.Size <= 0 || m.Signature.Size > 1<<20 {
 		return errors.New("invalid download bounds")
 	}
 	return nil

@@ -49,7 +49,9 @@ digest. No host device credential is forwarded to artifact storage.
 Only the two static Linux binaries and the three packaged documentation/license
 files are accepted. Traversal, links, special files, unknown entries, duplicate
 files, wrong architectures and incomplete archives are refused. Downloads,
-expanded bytes and individual documents have fixed limits. Failed installation
+expanded bytes and individual documents have fixed limits: the shared downloader
+allows at most 64 MiB compressed, extraction at most 256 MiB total, and each
+document at most 1 MiB. Failed installation
 removes its newly created directory; an existing directory is never overwritten.
 The command serializes installation/removal with an exclusive sibling lock.
 After a crash, inspect the interrupted operation and its files before manually

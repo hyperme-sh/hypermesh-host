@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/FyberLabs/hypermesh-host/internal/update"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -308,5 +309,17 @@ func TestSignatureRefusalDoesNotDownloadPayload(t *testing.T) {
 	err := install(context.Background(), m, filepath.Join(parent, "visor"), []byte("key"), []string{"fp"}, "amd64", fetch, func([]byte, []byte, []byte, []string) error { return errors.New("denied") })
 	if err == nil || downloaded {
 		t.Fatal("untrusted signature reached payload download")
+	}
+}
+
+func TestManifestUsesProductionDownloadLimit(t *testing.T) {
+	m, _ := manifestFixture([]byte("fixture"))
+	m.Bundle.Size = update.MaxDownloadBytes
+	if err := m.validate("amd64"); err != nil {
+		t.Fatalf("download boundary rejected: %v", err)
+	}
+	m.Bundle.Size++
+	if err := m.validate("amd64"); err == nil {
+		t.Fatal("manifest exceeds production download limit")
 	}
 }

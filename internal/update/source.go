@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// MaxDownloadBytes is the shared upper bound enforced by FetchLimited.
+const MaxDownloadBytes = maxAsset
+
 // Artifact is one file the plane named. URL may be a SAS URL.
 // Do not log it. Size is the byte cap and the expected length.
 type Artifact struct {
