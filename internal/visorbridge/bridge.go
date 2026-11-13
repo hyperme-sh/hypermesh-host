@@ -287,7 +287,7 @@ func (b *Bridge) Handler() http.Handler {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
 		defer cancel()
-		output, err := b.command(ctx, action, raw, 2100000)
+		output, err := b.command(ctx, action, raw, 6*1048576+4096)
 		if err != nil || !json.Valid(output) {
 			http.Error(w, "host capability bridge refused", 403)
 			return
