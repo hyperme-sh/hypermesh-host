@@ -235,9 +235,9 @@ func (c *ClockController) Handler() http.Handler {
 		json.NewEncoder(w).Encode(result)
 	})
 }
-func RunController(ctx context.Context, args []string, out io.Writer) int {
+func RunController(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 	fs := flag.NewFlagSet("visor controller", flag.ContinueOnError)
-	fs.SetOutput(out)
+	fs.SetOutput(diagnostic)
 	path := fs.String("config", "", "owned read-only clock controller config")
 	describe := fs.Bool("describe", false, "print the immutable driver requirements")
 	if err := fs.Parse(args); err != nil {
@@ -253,7 +253,9 @@ func RunController(ctx context.Context, args []string, out io.Writer) int {
 		if *path != "" {
 			return 2
 		}
-		json.NewEncoder(out).Encode(Requirements{[]string{"clock-available"}, []Limit{{"controller/read-only", clockRevision}}, []string{"host/clock"}, 1000, 1000})
+		if err := json.NewEncoder(out).Encode(Requirements{[]string{"clock-available"}, []Limit{{"controller/read-only", clockRevision}}, []string{"host/clock"}, 1000, 1000}); err != nil {
+			return 1
+		}
 		return 0
 	}
 	if *path == "" || trustedConfiguration(*path) != nil {
@@ -267,16 +269,16 @@ func RunController(ctx context.Context, args []string, out io.Writer) int {
 	file.Close()
 	var config ControllerConfig
 	if err != nil || len(raw) > 16384 || decode(raw, &config) != nil {
-		fmt.Fprintln(out, "controller refused")
+		fmt.Fprintln(diagnostic, "controller refused")
 		return 1
 	}
 	controller, err := NewClockController(config)
 	if err != nil {
-		fmt.Fprintln(out, "controller refused")
+		fmt.Fprintln(diagnostic, "controller refused")
 		return 1
 	}
 	if serveSocket(ctx, config.Socket, 0, controller.Handler()) != nil {
-		fmt.Fprintln(out, "controller refused")
+		fmt.Fprintln(diagnostic, "controller refused")
 		return 1
 	}
 	return 0

@@ -16,7 +16,7 @@ func Run(ctx context.Context, args []string, out, diagnostic io.Writer) int {
 		return 2
 	}
 	if args[0] == "controller" {
-		return visorbridge.RunController(ctx, args[1:], diagnostic)
+		return visorbridge.RunController(ctx, args[1:], out, diagnostic)
 	}
 	if args[0] == "bridge" {
 		return visorbridge.Run(ctx, args[1:], diagnostic)
