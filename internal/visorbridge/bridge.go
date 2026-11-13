@@ -151,7 +151,7 @@ func decode(raw []byte, out any) error {
 }
 
 func (b *Bridge) Review(ctx context.Context, raw []byte) (Result, error) {
-	if len(raw) > 140000 {
+	if len(raw) > (6*65536 + 4096) {
 		return Result{}, refused
 	}
 	var call Call
@@ -236,7 +236,7 @@ func (b *Bridge) Handler() http.Handler {
 				http.NotFound(w, r)
 				return
 			}
-			raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 140000))
+			raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, (6*65536 + 4096)))
 			if err != nil {
 				http.Error(w, "host capability bridge refused", 413)
 				return
@@ -257,7 +257,7 @@ func (b *Bridge) Handler() http.Handler {
 			action = "capability-catalog"
 		case r.Method == "POST" && r.URL.Path == "/dispatch":
 			action = "capability-dispatch"
-			raw, err = io.ReadAll(http.MaxBytesReader(w, r.Body, 140000))
+			raw, err = io.ReadAll(http.MaxBytesReader(w, r.Body, (6*65536 + 4096)))
 			var call Call
 			if err != nil || decode(raw, &call) != nil || len(call.Arguments) > 65536 {
 				http.Error(w, "host capability bridge refused", 403)

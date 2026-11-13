@@ -63,7 +63,7 @@ func TestDisabledOrChangedBindingsNeverSign(t *testing.T) {
 			case "extra":
 				raw = append(raw[:len(raw)-1], []byte(`,"decision":"allow"}`)...)
 			case "oversized":
-				raw = bytes.Repeat([]byte("x"), 140001)
+				raw = bytes.Repeat([]byte("x"), 6*65536+4097)
 			}
 			if _, err := bridge.Review(context.Background(), raw); err == nil || *signs != 0 || *reviews != 0 {
 				t.Fatal("unlisted call signed")
@@ -168,5 +168,27 @@ func TestNonRootClientCanOnlyInvokeFixedDispatcherOrCatalog(t *testing.T) {
 				t.Fatal("direct machine signing exposed")
 			}
 		})
+	}
+}
+
+func TestReviewAcceptsEscapedArgumentsBeforeSigning(t *testing.T) {
+	bridge, raw, _, _ := fixture(t)
+	var call Call
+	if json.Unmarshal(raw, &call) != nil {
+		t.Fatal("fixture")
+	}
+	call.Arguments = `"` + strings.Repeat("<", 65534) + `"`
+	raw, _ = json.Marshal(call)
+	signed := false
+	bridge.sign = func(ctx context.Context, value machineidentity.CapabilityCall) ([]byte, error) {
+		if string(value.Arguments) != call.Arguments {
+			t.Fatal("argument bytes changed")
+		}
+		signed = true
+		return nil, errors.New("fixture stops before authority")
+	}
+	bridge.Review(context.Background(), raw)
+	if !signed {
+		t.Fatal("valid escaped call never reached signer")
 	}
 }
