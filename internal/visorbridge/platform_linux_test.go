@@ -54,6 +54,9 @@ func TestOwnedExecutableAndConfigPaths(t *testing.T) {
 }
 
 func TestListenerDropsWrongKernelUIDBeforeHTTP(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root is the trusted control peer")
+	}
 	path := filepath.Join(t.TempDir(), "refuse.sock")
 	unix, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {

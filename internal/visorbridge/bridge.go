@@ -37,17 +37,18 @@ type Call struct {
 }
 
 type Config struct {
-	Schema       int       `json:"schema"`
-	ClientUID    uint32    `json:"client_uid"`
-	Socket       string    `json:"socket"`
-	Conductor    string    `json:"conductor"`
-	AuthorityURL string    `json:"authority_url"`
-	Base         string    `json:"base"`
-	Tenant       string    `json:"tenant"`
-	Device       string    `json:"device"`
-	Identity     string    `json:"identity"`
-	WireGuardKey string    `json:"wireguard_key,omitempty"`
-	Enabled      []Binding `json:"enabled"`
+	Schema         int       `json:"schema"`
+	ClientUID      uint32    `json:"client_uid"`
+	Socket         string    `json:"socket"`
+	Conductor      string    `json:"conductor"`
+	AuthorityURL   string    `json:"authority_url"`
+	DispatchConfig string    `json:"dispatch_config"`
+	Base           string    `json:"base"`
+	Tenant         string    `json:"tenant"`
+	Device         string    `json:"device"`
+	Identity       string    `json:"identity"`
+	WireGuardKey   string    `json:"wireguard_key,omitempty"`
+	Enabled        []Binding `json:"enabled"`
 }
 
 type Result struct {
@@ -62,11 +63,13 @@ type signer func(context.Context, machineidentity.CapabilityCall) ([]byte, error
 type reviewer func(context.Context, []byte) ([]byte, error)
 
 type Bridge struct {
-	config Config
-	sign   signer
-	review reviewer
-	now    func() time.Time
-	busy   chan struct{}
+	config        Config
+	sign          signer
+	review        reviewer
+	now           func() time.Time
+	busy          chan struct{}
+	dispatchSlots chan struct{}
+	command       func(context.Context, string, []byte, int) ([]byte, error)
 }
 
 func New(config Config) (*Bridge, error) {
@@ -74,7 +77,7 @@ func New(config Config) (*Bridge, error) {
 	if err != nil || config.Schema != 1 || config.ClientUID == 0 || len(config.Enabled) > 64 || target.Scheme != "https" || target.Host == "" || target.User != nil || target.RawQuery != "" || target.Fragment != "" || target.Path != "/api/v1/aiuditor/capabilities/review" {
 		return nil, refused
 	}
-	if trustedExecutable(config.Conductor) != nil {
+	if trustedExecutable(config.Conductor) != nil || trustedConfiguration(config.DispatchConfig) != nil {
 		return nil, refused
 	}
 	seen := map[Binding]bool{}
@@ -86,18 +89,22 @@ func New(config Config) (*Bridge, error) {
 	}
 	config.Enabled = append([]Binding(nil), config.Enabled...)
 	provider := machineidentity.Provider{Path: config.Identity}
-	b := &Bridge{config: config, now: time.Now, busy: make(chan struct{}, 8)}
+	b := &Bridge{config: config, now: time.Now, busy: make(chan struct{}, 8), dispatchSlots: make(chan struct{}, 4)}
 	b.sign = func(ctx context.Context, call machineidentity.CapabilityCall) ([]byte, error) {
 		return provider.SignCapability(ctx, config.Base, config.Tenant, config.Device, config.WireGuardKey, call)
 	}
-	b.review = func(ctx context.Context, raw []byte) ([]byte, error) {
-		if trustedExecutable(config.Conductor) != nil {
+	b.command = func(ctx context.Context, action string, raw []byte, limit int) ([]byte, error) {
+		if trustedExecutable(config.Conductor) != nil || trustedConfiguration(config.DispatchConfig) != nil {
 			return nil, refused
 		}
-		cmd := exec.CommandContext(ctx, config.Conductor, "capability-review", "--endpoint", config.AuthorityURL)
+		args := []string{action, "--config", config.DispatchConfig}
+		if action == "capability-review" {
+			args = []string{action, "--endpoint", config.AuthorityURL}
+		}
+		cmd := exec.CommandContext(ctx, config.Conductor, args...)
 		cmd.Env = []string{"PATH=/usr/bin:/bin", "LANG=C", "HOME=/nonexistent"}
 		cmd.Stdin = bytes.NewReader(raw)
-		output := &boundedOutput{limit: 4096}
+		output := &boundedOutput{limit: limit}
 		cmd.Stdout = output
 		cmd.Stderr = io.Discard
 		cmd.WaitDelay = time.Second
@@ -106,6 +113,10 @@ func New(config Config) (*Bridge, error) {
 		}
 		return output.buf.Bytes(), nil
 	}
+	b.review = func(ctx context.Context, raw []byte) ([]byte, error) {
+		return b.command(ctx, "capability-review", raw, 4096)
+	}
+
 	return b, nil
 }
 
@@ -207,32 +218,81 @@ func (b *Bridge) Handler() http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")
 		uid, ok := r.Context().Value(peerKey{}).(uint32)
-		if !ok || uid != b.config.ClientUID {
+		if !ok || (uid != b.config.ClientUID && uid != 0) {
 			http.Error(w, "host capability bridge refused", 403)
 			return
 		}
-		if r.Method == "GET" && r.URL.Path == "/capabilities" {
-			json.NewEncoder(w).Encode(struct {
-				Schema  int       `json:"schema"`
-				Enabled []Binding `json:"enabled"`
-			}{1, b.config.Enabled})
+		// Only the trusted root Conductor child may obtain a machine review. The
+		// non-root client cannot take an allow result to an unguarded controller.
+		if uid == 0 {
+			if r.Method == "GET" && r.URL.Path == "/capabilities" {
+				json.NewEncoder(w).Encode(struct {
+					Schema  int       `json:"schema"`
+					Enabled []Binding `json:"enabled"`
+				}{1, b.config.Enabled})
+				return
+			}
+			if r.Method != "POST" || r.URL.Path != "/review" {
+				http.NotFound(w, r)
+				return
+			}
+			raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 140000))
+			if err != nil {
+				http.Error(w, "host capability bridge refused", 413)
+				return
+			}
+			result, err := b.Review(r.Context(), raw)
+			if err != nil {
+				http.Error(w, "host capability bridge refused", 403)
+				return
+			}
+			json.NewEncoder(w).Encode(result)
 			return
 		}
-		if r.Method != "POST" || r.URL.Path != "/review" {
+		action := ""
+		var raw []byte
+		var err error
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/catalog":
+			action = "capability-catalog"
+		case r.Method == "POST" && r.URL.Path == "/dispatch":
+			action = "capability-dispatch"
+			raw, err = io.ReadAll(http.MaxBytesReader(w, r.Body, 140000))
+			var call Call
+			if err != nil || decode(raw, &call) != nil || len(call.Arguments) > 65536 {
+				http.Error(w, "host capability bridge refused", 403)
+				return
+			}
+			enabled := false
+			for _, binding := range b.config.Enabled {
+				if binding == call.Binding {
+					enabled = true
+					break
+				}
+			}
+			if !enabled {
+				http.Error(w, "host capability bridge refused", 403)
+				return
+			}
+		default:
 			http.NotFound(w, r)
 			return
 		}
-		raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 140000))
-		if err != nil {
-			http.Error(w, "host capability bridge refused", 413)
+		select {
+		case b.dispatchSlots <- struct{}{}:
+			defer func() { <-b.dispatchSlots }()
+		default:
+			http.Error(w, "host capability bridge refused", 429)
 			return
 		}
-		result, err := b.Review(r.Context(), raw)
-		if err != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
+		defer cancel()
+		output, err := b.command(ctx, action, raw, 2100000)
+		if err != nil || !json.Valid(output) {
 			http.Error(w, "host capability bridge refused", 403)
 			return
 		}
-		json.NewEncoder(w).Encode(result)
+		w.Write(output)
 	})
 }
 

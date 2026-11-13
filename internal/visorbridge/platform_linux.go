@@ -44,7 +44,8 @@ func trustedPath(path string, executable bool) error {
 	}
 	return nil
 }
-func trustedExecutable(path string) error { return trustedPath(path, true) }
+func trustedExecutable(path string) error    { return trustedPath(path, true) }
+func trustedConfiguration(path string) error { return trustedPath(path, false) }
 func Load(path string) (Config, error) {
 	var c Config
 	if trustedPath(path, false) != nil {
@@ -121,7 +122,7 @@ func (b *Bridge) Serve(ctx context.Context) error {
 	if os.Chmod(path, 0666) != nil {
 		return refused
 	}
-	server := &http.Server{Handler: b.Handler(), ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 3 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 2 * time.Second, MaxHeaderBytes: 4096, ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+	server := &http.Server{Handler: b.Handler(), ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 3 * time.Second, WriteTimeout: 40 * time.Second, IdleTimeout: 2 * time.Second, MaxHeaderBytes: 4096, ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 		uid, err := peerUID(c)
 		if err != nil {
 			return ctx
@@ -162,7 +163,7 @@ func (l *peerListener) Accept() (net.Conn, error) {
 			return nil, err
 		}
 		uid, err := peerUID(connection)
-		if err != nil || uid != l.uid {
+		if err != nil || (uid != l.uid && uid != 0) {
 			connection.Close()
 			continue
 		}

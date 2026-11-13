@@ -7,3 +7,5 @@ import "context"
 func trustedExecutable(string) error        { return refused }
 func Load(string) (Config, error)           { return Config{}, refused }
 func (*Bridge) Serve(context.Context) error { return refused }
+
+func trustedConfiguration(string) error { return refused }

@@ -119,12 +119,54 @@ func TestPeerGateCannotBeSuppliedInHeaders(t *testing.T) {
 		request = request.WithContext(context.WithValue(request.Context(), peerKey{}, uid))
 		response := httptest.NewRecorder()
 		bridge.Handler().ServeHTTP(response, request)
-		if uid == 1001 {
+		if uid == 0 {
 			if response.Code != 200 || *signs != 1 {
 				t.Fatal(response.Code)
 			}
-		} else if response.Code != 403 || *signs != 0 {
+		} else if (response.Code != 403 && response.Code != 404) || *signs != 0 {
 			t.Fatal("wrong UID authorized")
 		}
+	}
+}
+
+func TestNonRootClientCanOnlyInvokeFixedDispatcherOrCatalog(t *testing.T) {
+	for _, path := range []string{"/dispatch", "/catalog", "/review", "/capabilities"} {
+		t.Run(path, func(t *testing.T) {
+			bridge, raw, signs, _ := fixture(t)
+			bridge.dispatchSlots = make(chan struct{}, 1)
+			calls := 0
+			bridge.command = func(ctx context.Context, action string, body []byte, limit int) ([]byte, error) {
+				calls++
+				want := "capability-dispatch"
+				if path == "/catalog" {
+					want = "capability-catalog"
+				}
+				if action != want {
+					t.Fatal("uncontrolled command", action)
+				}
+				if path == "/dispatch" && !bytes.Equal(raw, body) {
+					t.Fatal("call bytes changed")
+				}
+				return []byte(`{"completed":true}`), nil
+			}
+			method := "POST"
+			if path == "/catalog" || path == "/capabilities" {
+				method = "GET"
+			}
+			request := httptest.NewRequest(method, path, bytes.NewReader(raw))
+			request = request.WithContext(context.WithValue(request.Context(), peerKey{}, uint32(1001)))
+			response := httptest.NewRecorder()
+			bridge.Handler().ServeHTTP(response, request)
+			if path == "/dispatch" || path == "/catalog" {
+				if response.Code != 200 || calls != 1 {
+					t.Fatal(response.Code, calls)
+				}
+			} else if response.Code != 404 || calls != 0 {
+				t.Fatal("control API exposed to non-root caller")
+			}
+			if *signs != 0 {
+				t.Fatal("direct machine signing exposed")
+			}
+		})
 	}
 }
