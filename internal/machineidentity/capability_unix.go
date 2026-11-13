@@ -46,6 +46,7 @@ func validCapability(call CapabilityCall) bool {
 
 // trustedCapabilityFile never creates, replaces, or changes key-file modes.
 func trustedCapabilityFile(path string) (*os.File, error) {
+	path = identityPath(path)
 	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
 		return nil, errCapability
 	}
