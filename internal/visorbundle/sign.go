@@ -17,7 +17,7 @@ func signCall(ctx context.Context, args []string, out, diagnostic io.Writer) int
 	fs.SetOutput(diagnostic)
 	path := fs.String("call", "", "local capability call JSON file")
 	identity := fs.String("identity", machineidentity.DefaultPath, "existing enrolled-machine checkpoint")
-	wireguard := fs.String("wireguard-key", "/etc/wireguard/hypermesh.key", "existing private WireGuard key file (read only)")
+	wireguard := fs.String("wireguard-key", "", "existing private WireGuard key override (default: active device.json key directory)")
 	base := fs.String("base", "", "active enrollment HTTPS control-plane base")
 	tenant := fs.String("tenant", "", "active enrollment tenant UUID")
 	device := fs.String("device", "", "active enrollment device UUID")

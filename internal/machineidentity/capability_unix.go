@@ -99,6 +99,12 @@ func (p Provider) SignCapability(ctx context.Context, base, tenant, device, wire
 	if err != nil {
 		return nil, errCapability
 	}
+	if wireguardKeyPath == "" {
+		wireguardKeyPath, err = enrolledCapabilityKey(p.Path, device)
+		if err != nil {
+			return nil, errCapability
+		}
+	}
 	file, err := trustedCapabilityFile(wireguardKeyPath)
 	if err != nil {
 		return nil, errCapability
@@ -139,4 +145,33 @@ func (p Provider) SignCapability(ctx context.Context, base, tenant, device, wire
 		return nil, errCapability
 	}
 	return json.Marshal(body)
+}
+
+// device.json is owned by the host agent. Read only the fields needed to bind
+// this operation; never include its device credential in diagnostics or output.
+func enrolledCapabilityKey(identity, device string) (string, error) {
+	file, err := trustedCapabilityFile(filepath.Join(filepath.Dir(identity), "device.json"))
+	if err != nil {
+		return "", errCapability
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(io.LimitReader(file, 16385))
+	if err != nil || len(raw) > 16384 {
+		return "", errCapability
+	}
+	var state struct {
+		Device string `json:"device_id"`
+		KeyDir string `json:"wg_key_dir"`
+	}
+	if json.Unmarshal(raw, &state) != nil || state.Device != device {
+		return "", errCapability
+	}
+	directory := state.KeyDir
+	if directory == "" {
+		directory = tunnel.DefaultKeyDir
+	}
+	if !filepath.IsAbs(directory) || filepath.Clean(directory) != directory {
+		return "", errCapability
+	}
+	return filepath.Join(directory, "hypermesh.key"), nil
 }

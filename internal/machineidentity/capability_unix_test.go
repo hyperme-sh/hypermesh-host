@@ -145,3 +145,58 @@ func TestCapabilitySigningRefusesUnsafeOrInactiveState(t *testing.T) {
 		})
 	}
 }
+
+func TestCapabilityDefaultUsesActiveEnrollmentKey(t *testing.T) {
+	p, wg, call, s := capabilityFixture(t)
+	directory := filepath.Join(filepath.Dir(p.Path), "registration-keys", request)
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	enrolled := filepath.Join(directory, "hypermesh.key")
+	if err := os.Rename(wg, enrolled); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(filepath.Dir(p.Path), "device.json")
+	put := func(deviceID, keyDir string) {
+		t.Helper()
+		raw, _ := json.Marshal(map[string]string{"device_id": deviceID, "wg_key_dir": keyDir, "device_secret": "must-not-escape"})
+		if err := os.WriteFile(path, raw, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put(device, directory)
+	signed, err := p.SignCapability(context.Background(), s.Base, tenant, device, "", call)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(enrolled)
+	expected, _ := tunnel.PublicFromPrivate(string(raw))
+	var body map[string]any
+	json.Unmarshal(signed, &body)
+	if body["wireguard_public_key"] != expected || bytes.Contains(signed, []byte("must-not-escape")) {
+		t.Fatal("wrong enrolled key or credential exposed")
+	}
+	for _, mode := range []string{"missing", "different-device", "relative-directory", "unsafe-mode"} {
+		t.Run(mode, func(t *testing.T) {
+			put(device, directory)
+			switch mode {
+			case "missing":
+				os.Remove(path)
+			case "different-device":
+				put(tenant, directory)
+			case "relative-directory":
+				put(device, "relative")
+			case "unsafe-mode":
+				os.Chmod(path, 0644)
+			}
+			if raw, err := p.SignCapability(context.Background(), s.Base, tenant, device, "", call); err == nil || len(raw) != 0 {
+				t.Fatal("invalid active enrollment accepted")
+			}
+			os.Remove(path)
+		})
+	}
+	// An explicit operator key path remains usable without default device state.
+	if _, err := p.SignCapability(context.Background(), s.Base, tenant, device, enrolled, call); err != nil {
+		t.Fatal(err)
+	}
+}

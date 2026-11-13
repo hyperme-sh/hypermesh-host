@@ -2,9 +2,13 @@
 
 `hypermesh-host visor sign-call --call CALL.json --base HTTPS_CONTROL_PLANE
 --tenant TENANT_UUID --device DEVICE_UUID` signs a bounded call using the existing
-machine checkpoint. Defaults are `/var/lib/hypermesh/machine-identity.json` and
-`/etc/wireguard/hypermesh.key`; explicit `--identity` and `--wireguard-key` paths
-support an operator-selected enrollment. Files must be owned private regular
+machine checkpoint, defaulting to `/var/lib/hypermesh/machine-identity.json`.
+The WireGuard key defaults to the active `wg_key_dir` in the checkpoint
+directory's private `device.json`, cross-checked against the requested device.
+Only legacy state without that field uses `/etc/wireguard/hypermesh.key`. Missing
+or mismatched device state refuses the default instead of selecting another
+key. Explicit `--identity` and `--wireguard-key` paths support an
+operator-selected enrollment. Files must be owned private regular
 files beneath trusted directories. The operation never enrolls, renews, rotates,
 replaces or weakens a key. It refuses pending rotation and mismatched active
 network/tenant/device context.
